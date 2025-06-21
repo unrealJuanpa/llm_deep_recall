@@ -1,6 +1,8 @@
 import requests
 import json
 import re
+import os
+import sys
 from typing import List, Dict, Optional, Callable
 
 class AIAgent:
@@ -71,7 +73,60 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
         # Flag to control reply function
         self._reply_called = False
         self._final_response = ""
+        
+        # Initialize color support
+        self._init_color_support()
     
+    def _init_color_support(self):
+        """Initialize color support detection"""
+        self.colors_enabled = False
+        
+        # Check if we're in a terminal that supports colors
+        if hasattr(sys.stdout, 'isatty') and sys.stdout.isatty():
+            # Check various environment variables that indicate color support
+            term = os.environ.get('TERM', '').lower()
+            colorterm = os.environ.get('COLORTERM', '').lower()
+            
+            # Common terminals that support colors
+            color_terms = [
+                'xterm', 'xterm-color', 'xterm-256color', 'screen', 'screen-256color',
+                'tmux', 'tmux-256color', 'rxvt', 'ansi', 'cygwin', 'linux'
+            ]
+            
+            # Enable colors if:
+            # 1. TERM contains a known color terminal
+            # 2. COLORTERM is set (usually indicates color support)
+            # 3. Force enable if FORCE_COLOR is set
+            if (any(ct in term for ct in color_terms) or 
+                colorterm or 
+                os.environ.get('FORCE_COLOR') or
+                os.environ.get('CLICOLOR')):
+                self.colors_enabled = True
+        
+        # Set color codes
+        if self.colors_enabled:
+            self.GRAY = '\033[90m'
+            self.RESET = '\033[0m'
+            self.BOLD = '\033[1m'
+        else:
+            self.GRAY = ''
+            self.RESET = ''
+            self.BOLD = ''
+    
+    def _print_colored(self, text: str, color: str = '', end: str = '', flush: bool = True):
+        """Print text with color if supported"""
+        if color and self.colors_enabled:
+            print(f"{color}{text}{self.RESET}", end=end, flush=flush)
+        else:
+            print(text, end=end, flush=flush)
+        """Adds the built-in reply function"""
+        def reply(message: str):
+            """
+            Función para enviar la respuesta final al usuario.
+            Esta función termina el ciclo de ejecución interno.
+            """
+            return message
+        
     def _add_reply_function(self):
         """Adds the built-in reply function"""
         def reply(message: str):
@@ -192,7 +247,7 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
     
     def _get_agent_response(self, messages: List[Dict[str, str]]) -> str:
         """
-        Gets response from the agent without streaming
+        Gets response from the agent with streaming
         
         Args:
             messages: Message history
@@ -203,19 +258,38 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
         payload = {
             "model": self.model,
             "messages": messages,
-            "stream": False
+            "stream": True
         }
         
         try:
             response = requests.post(
                 f"{self.base_url}/api/chat",
                 json=payload,
+                stream=True,
                 timeout=30
             )
             response.raise_for_status()
             
-            data = response.json()
-            return data.get('message', {}).get('content', '')
+            complete_response = ""
+            
+            # Process response stream with color
+            for line in response.iter_lines():
+                if line:
+                    try:
+                        chunk = json.loads(line.decode('utf-8'))
+                        if 'message' in chunk and 'content' in chunk['message']:
+                            content = chunk['message']['content']
+                            self._print_colored(content, self.GRAY, end="", flush=True)
+                            complete_response += content
+                            
+                        # Check if stream is done
+                        if chunk.get('done', False):
+                            break
+                            
+                    except json.JSONDecodeError:
+                        continue
+            
+            return complete_response
             
         except Exception as e:
             return f"Error: {str(e)}"
@@ -254,21 +328,22 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
         
         while not self._reply_called and iteration < self.max_iterations:
             iteration += 1
-            print(f"\n[Iteración {iteration}]")
+            self._print_colored(f"\n[Iteración {iteration}]", self.GRAY)
             
             # Get agent response
+            self._print_colored("Agente piensa: ", self.GRAY, end="", flush=True)
             agent_response = self._get_agent_response(current_messages)
-            print(f"Agente piensa: {agent_response}")
+            print()  # New line after streaming
             
             # Check if there's a function call
             function_call = self._extract_json_function(agent_response)
             
             if function_call:
-                print(f"Ejecutando: {function_call}")
+                self._print_colored(f"Ejecutando: {function_call}", self.GRAY)
                 
                 # Execute the function
                 function_result = self._execute_function(function_call)
-                print(f"Resultado: {function_result}")
+                self._print_colored(f"Resultado: {function_result}", self.GRAY)
                 
                 # Add to conversation
                 current_messages.append({"role": "assistant", "content": agent_response})
@@ -287,7 +362,7 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
         if iteration >= self.max_iterations and not self._reply_called:
             self._final_response = "Se alcanzó el límite máximo de iteraciones. Proceso terminado."
         
-        print("--- Fin del procesamiento ---")
+        print("\n--- Fin del procesamiento ---")
         print(f"Respuesta final: {self._final_response}")
         
         # Add final exchange to history

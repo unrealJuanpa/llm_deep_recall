@@ -46,19 +46,34 @@ class AIAgent:
 
 AVISO: Solo tienes disponibles las funciones que se nombran, por lo tanto solo puedes utilizar esas.
 Eres curioso, por lo tanto buscas información para poder cumplir tu objetivo.
-Todas las funciones proporcionadas estan implementadas con python.
+Todas las funciones proporcionadas están implementadas con python.
 
-IMPORTANTE: Para ejecutar una función, responde ÚNICAMENTE con un JSON en este formato:
-{"function": "nombre_funcion(argumentos)"}
+IMPORTANTE: Para ejecutar una función, usa bloques de código Python con el siguiente formato:
+
+```python
+nombre_funcion(argumentos)
+```
 
 Por ejemplo:
-{"function": "suma(3, 5)"}
-{"function": "buscar_archivo('documento.txt')"}
+```python
+suma(3, 5)
+```
 
+```python
+buscar_en_internet('hora en guatemala')
+```
+
+```python
+reply('tu respuesta aquí')
+```
+
+Solamente puede ir luego de ``` la palabra python, ya que es el único lenguaje para ejecutar tus herramientas.
 Después de ejecutar una función, recibirás el resultado y podrás ejecutar más funciones si es necesario.
 
 Para dar tu respuesta final al usuario, DEBES usar la función reply:
-{"function": "reply('tu respuesta aquí')"}
+```python
+reply('tu respuesta aquí')
+```
 
 Esta función reply terminará la conversación y enviará tu respuesta al usuario."""
         
@@ -71,7 +86,7 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
         # Conversation history - always starts with system prompt
         self.history: List[Dict[str, str]] = [
             {"role": "user", "content": self.system_prompt},
-            {"role": "assistant", "content": "Entendido. Puedo ejecutar funciones y usar reply() para responder."}
+            {"role": "assistant", "content": "Entendido. Puedo ejecutar funciones usando bloques de código Python y usar reply() para responder."}
         ]
         
         # Flag to control reply function
@@ -112,10 +127,14 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
             self.GRAY = '\033[90m'
             self.RESET = '\033[0m'
             self.BOLD = '\033[1m'
+            self.GREEN = '\033[92m'
+            self.YELLOW = '\033[93m'
         else:
             self.GRAY = ''
             self.RESET = ''
             self.BOLD = ''
+            self.GREEN = ''
+            self.YELLOW = ''
     
     def _print_colored(self, text: str, color: str = '', end: str = '', flush: bool = True):
         """Print text with color if supported"""
@@ -123,14 +142,7 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
             print(f"{color}{text}{self.RESET}", end=end, flush=flush)
         else:
             print(text, end=end, flush=flush)
-        """Adds the built-in reply function"""
-        def reply(message: str):
-            """
-            Función para enviar la respuesta final al usuario.
-            Esta función termina el ciclo de ejecución interno.
-            """
-            return message
-        
+    
     def _add_reply_function(self):
         """Adds the built-in reply function"""
         def reply(message: str):
@@ -168,8 +180,9 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
             else:
                 docstring = "Sin descripción disponible"
             
-            # Add function documentation
+            # Add function documentation with example
             documentation_lines.append(f"{func_name}: {docstring}")
+            documentation_lines.append(f"  Uso: ```python\n  {func_name}(argumentos)\n  ```")
         
         return "\n".join(documentation_lines)
     
@@ -184,8 +197,11 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
             String representation of the function result
         """
         try:
+            # Clean the function call (remove extra whitespace)
+            function_call = function_call.strip()
+            
             # Parse function name and arguments
-            match = re.match(r'(\w+)\((.*)\)', function_call.strip())
+            match = re.match(r'(\w+)\((.*)\)', function_call)
             if not match:
                 return f"Error: Formato de función inválido: {function_call}"
             
@@ -227,26 +243,40 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
         except Exception as e:
             return f"Error procesando función: {str(e)}"
     
-    def _extract_json_function(self, text: str) -> Optional[str]:
+    def _extract_code_block_function(self, text: str) -> Optional[str]:
         """
-        Extracts function call from JSON in the text
+        Extracts function call from Python code block in the text
         
         Args:
-            text: Text that might contain JSON function call
+            text: Text that might contain code block with function call
             
         Returns:
             Function call string or None if not found
         """
         try:
-            # Look for JSON pattern
-            json_match = re.search(r'\{[^}]*"function"[^}]*\}', text)
-            if json_match:
-                json_str = json_match.group()
-                parsed = json.loads(json_str)
-                if "function" in parsed:
-                    return parsed["function"]
-        except:
-            pass
+            # Look for Python code block pattern
+            code_block_pattern = r'```python\s*\n?(.*?)\n?```'
+            matches = re.findall(code_block_pattern, text, re.DOTALL | re.IGNORECASE)
+            
+            if matches:
+                # Get the first code block
+                code_content = matches[0].strip()
+                
+                # Check if it looks like a function call
+                if re.match(r'\w+\(.*\)', code_content):
+                    return code_content
+                    
+            # Also check for inline code blocks (single backticks) as fallback
+            inline_pattern = r'`([^`]+)`'
+            inline_matches = re.findall(inline_pattern, text)
+            
+            for match in inline_matches:
+                if re.match(r'\w+\(.*\)', match.strip()):
+                    return match.strip()
+                    
+        except Exception as e:
+            print(f"Error extracting code block: {e}")
+            
         return None
     
     def _get_agent_response(self, messages: List[Dict[str, str]]) -> str:
@@ -332,22 +362,22 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
         
         while not self._reply_called and iteration < self.max_iterations:
             iteration += 1
-            self._print_colored(f"\n[Iteración {iteration}]", self.GRAY)
+            self._print_colored(f"\n[Iteración {iteration}]", self.YELLOW)
             
             # Get agent response
-            self._print_colored("Agente piensa: ", self.GRAY, end="", flush=True)
+            self._print_colored(" Agente piensa: ", self.GRAY, end="", flush=True)
             agent_response = self._get_agent_response(current_messages)
             print()  # New line after streaming
             
-            # Check if there's a function call
-            function_call = self._extract_json_function(agent_response)
+            # Check if there's a function call in code block
+            function_call = self._extract_code_block_function(agent_response)
             
             if function_call:
-                self._print_colored(f"Ejecutando: {function_call}", self.GRAY)
+                self._print_colored(f"Ejecutando: {function_call}", self.GREEN)
                 
                 # Execute the function
                 function_result = self._execute_function(function_call)
-                self._print_colored(f"Resultado: {function_result}", self.GRAY)
+                self._print_colored(f" Resultado: {function_result}", self.GREEN)
                 
                 # Add to conversation
                 current_messages.append({"role": "assistant", "content": agent_response})
@@ -385,7 +415,7 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
         """Resets history keeping only the system prompt"""
         self.history = [
             {"role": "user", "content": self.system_prompt},
-            {"role": "assistant", "content": "Entendido. Puedo ejecutar funciones y usar reply() para responder."}
+            {"role": "assistant", "content": "Entendido. Puedo ejecutar funciones usando bloques de código Python y usar reply() para responder."}
         ]
     
     def change_model(self, new_model: str):

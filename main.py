@@ -5,7 +5,22 @@ import os
 os.system("clear")
 
 # Create agent instance
-agent = AIAgent(history_limit=30, tools=[tools.buscar_en_internet, tools.obtener_contenido_url, tools.sumar, tools.restar, tools.multiplicar, tools.dividir, tools.potencia, tools.modulo])
+agent = AIAgent(
+    model='llama3.2:3b-instruct-fp16',
+    history_limit=30, 
+    tools=[
+        tools.buscar_en_internet, 
+        tools.obtener_contenido_url, 
+        tools.sumar, 
+        tools.restar, 
+        tools.multiplicar, 
+        tools.dividir, 
+        tools.potencia, 
+        tools.modulo, 
+        tools.obtener_fecha_hora_actual, 
+        tools.calcular_distancia_en_anios
+    ]
+)
 
 
 while True:

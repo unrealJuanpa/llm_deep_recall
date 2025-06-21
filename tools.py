@@ -1,5 +1,6 @@
 import requests
 import os
+from datetime import datetime
 from dotenv import load_dotenv
 
 # Cargar variables de entorno desde el archivo .env
@@ -27,7 +28,7 @@ def buscar_en_internet(query: str, limite: int = 3) -> str:
     """
     Consulta Brave Search API y devuelve los primeros resultados con título, URL,
     descripción y contenido HTML completo de cada página encontrada.
-    Esta función se debe de utilizar solo cuando sea muy necesario debido a que es costoso, no sobrepasar el limite de 3.
+    No sobrepasar el limite de 3 resultados.
 
     Args:
         query (str): Texto a buscar.
@@ -186,3 +187,59 @@ def modulo(a: float, b: float) -> float:
     if b == 0:
         raise ValueError("No se puede calcular el módulo con divisor cero.")
     return a % b
+
+def obtener_fecha_hora_actual(a: float, b: float) -> float:
+    """
+    Obtiene la fecha y hora completa del sistema.
+
+    Args:
+        a (float): El dividendo.
+        b (float): El divisor.
+
+    Returns:
+        float: El residuo de a dividido por b.
+
+    Raises:
+        ValueError: Si b es cero.
+
+    Ejemplo:
+        >>> modulo(10, 3)
+        1
+    """
+    if b == 0:
+        raise ValueError("No se puede calcular el módulo con divisor cero.")
+    return a % b
+
+
+def obtener_fecha_hora_actual() -> str:
+    """
+    Obtiene la fecha y hora actual del sistema en formato ISO 8601.
+
+    Returns:
+        str: Fecha y hora actual (ej. '2025-06-21T05:30:00').
+    """
+    return datetime.now().isoformat()
+
+
+def calcular_distancia_en_anios(anio: int) -> int:
+    """
+    Calcula la diferencia en años entre el año actual y un año dado.
+
+    Args:
+        anio (int): Año con el que se quiere comparar (por ejemplo, 1990).
+
+    Returns:
+        int: Diferencia en años. Positivo si es pasado, negativo si es futuro, 0 si es el mismo año.
+
+    Raises:
+        ValueError: Si el año proporcionado es negativo.
+    
+    Ejemplo:
+        >>> calcular_distancia_en_anios(2000)
+        25  # si el año actual es 2025
+    """
+    if anio < 0:
+        raise ValueError("El año no puede ser negativo.")
+    
+    anio_actual = datetime.now().year
+    return anio_actual - anio

@@ -44,7 +44,7 @@ class AIAgent:
         # Sistema prompt interno optimizado - NO puede ser modificado desde el exterior
         base_system_prompt = """Eres un asistente IA que responde SOLO en español.
 
-🚨 REGLA CRÍTICA: TODA conversación DEBE terminar con reply('tu respuesta') cuando termines de hacer tu analisis, con la funcion reply das tu conclusion
+🚨 REGLA CRÍTICA: TODA conversación DEBE terminar con reply('tu respuesta') cuando termines de hacer tu analisis, con la funcion reply das la conclusion final donde se integre y resuma toda la informacion del analisis
 Sin reply() el sistema falla y entra en bucle infinito.
 
 FLUJO OBLIGATORIO:

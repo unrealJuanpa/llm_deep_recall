@@ -2,14 +2,43 @@ import requests
 import os
 from dotenv import load_dotenv
 
-# Cargar variables de entorno
+# Cargar variables de entorno desde el archivo .env
 load_dotenv()
 API_KEY = os.getenv("BRAVE_SEARCH_API_KEY")
 
-def buscar_en_brave(query: str, limite: int = 5) -> str:
+def obtener_contenido_url(url: str) -> str:
+    """
+    Realiza una solicitud HTTP GET a la URL dada y devuelve el contenido de la respuesta como texto.
+
+    Args:
+        url (str): Dirección URL a consultar.
+
+    Returns:
+        str: Contenido de la página o mensaje de error.
+    """
+    try:
+        respuesta = requests.get(url, timeout=10)
+        respuesta.raise_for_status()
+        return respuesta.text
+    except requests.RequestException as e:
+        return f"Error al acceder a la URL: {e}"
+
+def buscar_en_internet(query: str, limite: int = 3) -> str:
+    """
+    Consulta Brave Search API y devuelve los primeros resultados con título, URL,
+    descripción y contenido HTML completo de cada página encontrada.
+    Esta función se debe de utilizar solo cuando sea muy necesario debido a que es costoso, no sobrepasar el limite de 3.
+
+    Args:
+        query (str): Texto a buscar.
+        limite (int): Número máximo de resultados a mostrar (por defecto 3).
+
+    Returns:
+        str: Resultados formateados o mensaje de error.
+    """
     if not API_KEY:
         return "No se encontró la clave API. Verifica tu archivo .env."
-    
+
     url = "https://api.search.brave.com/res/v1/web/search"
     headers = {
         "Accept": "application/json",
@@ -17,17 +46,25 @@ def buscar_en_brave(query: str, limite: int = 5) -> str:
         "X-Subscription-Token": API_KEY
     }
     params = {"q": query}
-    
+
     try:
         response = requests.get(url, headers=headers, params=params)
         response.raise_for_status()
         resultados = response.json()
+        items = resultados.get("web", {}).get("results", [])[:limite]
 
-        titulos = [
-            item["title"]
-            for item in resultados.get("web", {}).get("results", [])[:limite]
-        ]
-        return "\n".join(titulos) if titulos else "No se encontraron resultados."
+        if not items:
+            return "No se encontraron resultados."
+
+        salida = []
+        for i, item in enumerate(items, 1):
+            titulo = item.get("title", "Sin título")
+            url_res = item.get("url", "Sin URL")
+            snippet = item.get("description", "Sin descripción")
+            contenido = obtener_contenido_url(url_res)
+            salida.append(f"{i}. {titulo}\nURL: {url_res}\nDescripción: {snippet}\nContenido:\n{contenido[:1000]}...\n")
+
+        return "\n".join(salida)
 
     except requests.RequestException as e:
         return f"Error en la búsqueda: {e}"

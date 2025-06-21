@@ -1,9 +1,11 @@
 import tools
 from ai_agent import AIAgent
+import os
 
+os.system("clear")
 
 # Create agent instance
-agent = AIAgent(history_limit=30, tools=[tools.buscar_en_brave, tools.sumar, tools.restar, tools.multiplicar, tools.dividir, tools.potencia, tools.modulo])
+agent = AIAgent(history_limit=30, tools=[tools.buscar_en_internet, tools.obtener_contenido_url, tools.sumar, tools.restar, tools.multiplicar, tools.dividir, tools.potencia, tools.modulo])
 
 
 while True:

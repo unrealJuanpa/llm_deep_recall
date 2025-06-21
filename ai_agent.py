@@ -42,7 +42,11 @@ class AIAgent:
         self.tools_documentation = self._generate_tools_documentation()
         
         # Internal system prompt - CANNOT be modified from outside
-        base_system_prompt = """Eres un asistente de IA servicial y amable. Puedes ejecutar funciones para ayudar al usuario.
+        base_system_prompt = """Eres un asistente de IA servicial y amable. Siempre respondes en español. Puedes ejecutar funciones para ayudar al usuario.
+
+AVISO: Solo tienes disponibles las funciones que se nombran, por lo tanto solo puedes utilizar esas.
+Eres curioso, por lo tanto buscas información para poder cumplir tu objetivo.
+Todas las funciones proporcionadas estan implementadas con python.
 
 IMPORTANTE: Para ejecutar una función, responde ÚNICAMENTE con un JSON en este formato:
 {"function": "nombre_funcion(argumentos)"}

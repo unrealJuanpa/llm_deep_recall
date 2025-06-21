@@ -3,7 +3,7 @@ from ai_agent import AIAgent
 
 
 # Create agent instance
-agent = AIAgent(history_limit=30, tools=[tools.sumar, tools.restar, tools.multiplicar, tools.dividir, tools.potencia, tools.modulo])
+agent = AIAgent(history_limit=30, tools=[tools.buscar_en_brave, tools.sumar, tools.restar, tools.multiplicar, tools.dividir, tools.potencia, tools.modulo])
 
 
 while True:

@@ -1,3 +1,38 @@
+import requests
+import os
+from dotenv import load_dotenv
+
+# Cargar variables de entorno
+load_dotenv()
+API_KEY = os.getenv("BRAVE_SEARCH_API_KEY")
+
+def buscar_en_brave(query: str, limite: int = 5) -> str:
+    if not API_KEY:
+        return "No se encontró la clave API. Verifica tu archivo .env."
+    
+    url = "https://api.search.brave.com/res/v1/web/search"
+    headers = {
+        "Accept": "application/json",
+        "Accept-Encoding": "gzip",
+        "X-Subscription-Token": API_KEY
+    }
+    params = {"q": query}
+    
+    try:
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        resultados = response.json()
+
+        titulos = [
+            item["title"]
+            for item in resultados.get("web", {}).get("results", [])[:limite]
+        ]
+        return "\n".join(titulos) if titulos else "No se encontraron resultados."
+
+    except requests.RequestException as e:
+        return f"Error en la búsqueda: {e}"
+
+
 def sumar(a: float, b: float) -> float:
     """
     Suma dos números.

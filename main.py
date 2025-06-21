@@ -1,19 +1,21 @@
-# main_basic.py
+# main.py
 from basic_agent import BasicAgent
 
-def main():
-    agent = BasicAgent(n_interactions=4)
+def sumar(a: int, b: int) -> int:
+    """Devuelve la suma de a y b."""
+    return a + b
 
-    print("🤖 Agente básico inicializado con gemma3:latest. Escribe 'salir' para terminar.")
-    
-    while True:
-        user_input = input("Tú: ").strip()
-        if user_input.lower() in ["salir", "exit", "quit"]:
-            print("👋 Terminando conversación.")
-            break
+def multiplicar(a: int, b: int) -> int:
+    """Devuelve el producto de a y b."""
+    return a * b
 
-        respuesta = agent.chat(user_input)
-        print("Agente:", respuesta)
+agent = BasicAgent()
+agent.register_tool("sumar", sumar)
+agent.register_tool("multiplicar", multiplicar)
 
-if __name__ == "__main__":
-    main()
+print("Agente iniciado. Puedes decir cosas como '¿cuánto es 7 por 8?' o 'suma 2 y 5'\n")
+
+while True:
+    user_input = input("Tú: ")
+    respuesta = agent.chat(user_input)
+    print(f"Agente: {respuesta}")

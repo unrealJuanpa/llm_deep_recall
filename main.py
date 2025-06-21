@@ -23,6 +23,9 @@ agent = AIAgent(
 )
 
 
+print(agent.get_info()['model'])
+
+
 while True:
     try:
         # Get user input

@@ -41,41 +41,40 @@ class AIAgent:
         # Generate tools documentation
         self.tools_documentation = self._generate_tools_documentation()
         
-        # Internal system prompt - CANNOT be modified from outside
-        base_system_prompt = """Eres un asistente de IA servicial y amable. Siempre respondes en español. Puedes ejecutar funciones para ayudar al usuario.
+        # Sistema prompt interno optimizado - NO puede ser modificado desde el exterior
+        base_system_prompt = """Eres un asistente IA que responde SOLO en español.
 
-AVISO: Solo tienes disponibles las funciones que se nombran, por lo tanto solo puedes utilizar esas.
-Eres curioso, por lo tanto buscas información para poder cumplir tu objetivo.
-Todas las funciones proporcionadas están implementadas con python.
+🚨 REGLA CRÍTICA: TODA conversación DEBE terminar con reply('tu respuesta') cuando termines de hacer tu analisis, con la funcion reply das tu conclusion
+Sin reply() el sistema falla y entra en bucle infinito.
 
-IMPORTANTE: Para ejecutar una función, usa bloques de código Python con el siguiente formato:
+FLUJO OBLIGATORIO:
+1. Analiza la consulta
+2. Usa herramientas si necesitas información/cálculos (opcional)
+3. Llama reply('respuesta completa en español') (OBLIGATORIO)
 
-```python
-nombre_funcion(argumentos)
-```
+HERRAMIENTAS:
+- Llama funciones directamente: buscar_en_internet('consulta')
+- SIEMPRE termina con: reply('tu respuesta final')
 
-Por ejemplo:
-```python
-suma(3, 5)
-```
+EJEMPLOS:
+• Pregunta simple → reply('Respuesta directa')
+• Necesitas datos → buscar_en_internet('datos') → reply('Respuesta con datos')
+• Necesitas cálculo → calcular(operación) → reply('Resultado explicado')
 
-```python
-buscar_en_internet('hora en guatemala')
-```
+REGLAS:
+✅ Usa herramientas cuando necesites información externa
+✅ SIEMPRE termina con reply()
+✅ Responde solo en español
+❌ NUNCA respondas sin reply()
+❌ NUNCA inventes información
+❌ NUNCA termines sin reply()
 
-```python
-reply('tu respuesta aquí')
-```
+CASOS ESPECIALES:
+- Pregunta confusa → reply('Podrías aclarar...')
+- Error → reply('Hubo un problema...')
+- Todo caso DEBE terminar con reply()
 
-Solamente puede ir luego de ``` la palabra python, ya que es el único lenguaje para ejecutar tus herramientas.
-Después de ejecutar una función, recibirás el resultado y podrás ejecutar más funciones si es necesario.
-
-Para dar tu respuesta final al usuario, DEBES usar la función reply:
-```python
-reply('tu respuesta aquí')
-```
-
-Esta función reply terminará la conversación y enviará tu respuesta al usuario."""
+🔴 CRÍTICO: reply() es OBLIGATORIO en cada interacción de finalizacion, con reply indicas tu conclusion"""
         
         # Add tools documentation to system prompt if tools are available
         if self.tools_documentation:
@@ -85,8 +84,7 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
         
         # Conversation history - always starts with system prompt
         self.history: List[Dict[str, str]] = [
-            {"role": "user", "content": self.system_prompt},
-            {"role": "assistant", "content": "Entendido. Puedo ejecutar funciones usando bloques de código Python y usar reply() para responder."}
+            {"role": "system", "content": self.system_prompt}
         ]
         
         # Flag to control reply function
@@ -147,8 +145,14 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
         """Adds the built-in reply function"""
         def reply(message: str):
             """
-            Función para enviar la respuesta final al usuario.
-            Esta función termina el ciclo de ejecución interno.
+            Función OBLIGATORIA para enviar la respuesta final al usuario.
+            Debes usar esta función para terminar cada conversación.
+            
+            Args:
+                message (str): Tu respuesta completa para el usuario
+            
+            Returns:
+                str: Confirmación de envío
             """
             return message
         
@@ -164,7 +168,8 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
         if not self.tools:
             return ""
         
-        documentation_lines = ["Funciones disponibles:"]
+        documentation_lines = ["\nHERRAMIENTAS DISPONIBLES:"]
+        documentation_lines.append("=" * 40)
         
         for tool in self.tools:
             # Get function name
@@ -180,9 +185,12 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
             else:
                 docstring = "Sin descripción disponible"
             
-            # Add function documentation with example
-            documentation_lines.append(f"{func_name}: {docstring}")
-            documentation_lines.append(f"  Uso: ```python\n  {func_name}(argumentos)\n  ```")
+            # Add function documentation with clear formatting
+            documentation_lines.append(f"\n• {func_name}:")
+            documentation_lines.append(f"  Description: {docstring}")
+            documentation_lines.append(f"  Usage: {func_name}(arguments)")
+        
+        documentation_lines.append("\nREMEMBER: Only YOU can execute these tools by calling them directly by name.")
         
         return "\n".join(documentation_lines)
     
@@ -203,14 +211,15 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
             # Parse function name and arguments
             match = re.match(r'(\w+)\((.*)\)', function_call)
             if not match:
-                return f"Error: Formato de función inválido: {function_call}"
+                return f"Error: Formato de función inválido: {function_call}. Usa el formato: nombre_funcion(argumentos)"
             
             func_name = match.group(1)
             args_str = match.group(2)
             
             # Check if function exists
             if func_name not in self.tools_registry:
-                return f"Error: Función '{func_name}' no encontrada"
+                available_tools = list(self.tools_registry.keys())
+                return f"Error: Función '{func_name}' no encontrada. Herramientas disponibles: {available_tools}"
             
             # Special handling for reply function
             if func_name == 'reply':
@@ -222,7 +231,7 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
                     self._final_response = args_str[1:-1]
                 else:
                     self._final_response = args_str
-                return f"Respuesta enviada al usuario: {self._final_response}"
+                return f"✓ Respuesta enviada al usuario"
             
             # Execute the function
             func = self.tools_registry[func_name]
@@ -236,48 +245,90 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
                 try:
                     result = eval(f"func({args_str})")
                 except Exception as e:
-                    return f"Error ejecutando {func_name}: {str(e)}"
+                    return f"Error en argumentos de {func_name}: {str(e)}. Verifica la sintaxis."
             
             return str(result)
             
         except Exception as e:
             return f"Error procesando función: {str(e)}"
     
-    def _extract_code_block_function(self, text: str) -> Optional[str]:
+    def _extract_function_calls(self, text: str) -> List[str]:
         """
-        Extracts function call from Python code block in the text
+        Extracts all function calls from the text using multiple detection methods
         
         Args:
-            text: Text that might contain code block with function call
+            text: Text that might contain function calls
             
         Returns:
-            Function call string or None if not found
+            List of function call strings
         """
+        function_calls = []
+        
         try:
-            # Look for Python code block pattern
+            # Method 1: Look for Python code blocks
             code_block_pattern = r'```python\s*\n?(.*?)\n?```'
-            matches = re.findall(code_block_pattern, text, re.DOTALL | re.IGNORECASE)
+            code_matches = re.findall(code_block_pattern, text, re.DOTALL | re.IGNORECASE)
             
-            if matches:
-                # Get the first code block
-                code_content = matches[0].strip()
+            for match in code_matches:
+                code_content = match.strip()
+                lines = code_content.split('\n')
+                for line in lines:
+                    line = line.strip()
+                    if re.match(r'\w+\(.*\)', line):
+                        function_calls.append(line)
+            
+            # Method 2: Look for direct function calls anywhere in text
+            available_functions = list(self.tools_registry.keys())
+            
+            for func_name in available_functions:
+                # Create pattern for this specific function
+                # This pattern looks for: function_name followed by opening parenthesis
+                pattern = rf'\b{re.escape(func_name)}\s*\('
                 
-                # Check if it looks like a function call
-                if re.match(r'\w+\(.*\)', code_content):
-                    return code_content
+                # Find all matches of this pattern
+                matches = re.finditer(pattern, text)
+                
+                for match in matches:
+                    start_pos = match.start()
+                    # Find the complete function call by counting parentheses
+                    paren_count = 0
+                    pos = match.end() - 1  # Start from the opening parenthesis
                     
-            # Also check for inline code blocks (single backticks) as fallback
-            inline_pattern = r'`([^`]+)`'
-            inline_matches = re.findall(inline_pattern, text)
+                    while pos < len(text):
+                        if text[pos] == '(':
+                            paren_count += 1
+                        elif text[pos] == ')':
+                            paren_count -= 1
+                            if paren_count == 0:
+                                # Found the complete function call
+                                function_call = text[start_pos:pos+1]
+                                function_calls.append(function_call)
+                                break
+                        pos += 1
             
-            for match in inline_matches:
-                if re.match(r'\w+\(.*\)', match.strip()):
-                    return match.strip()
-                    
+            # Method 3: Look for function calls on their own lines
+            lines = text.split('\n')
+            for line in lines:
+                line = line.strip()
+                # Check if line looks like a function call
+                if re.match(r'\w+\(.*\)', line):
+                    func_name = line.split('(')[0]
+                    if func_name in self.tools_registry:
+                        function_calls.append(line)
+            
+            # Remove duplicates while preserving order
+            seen = set()
+            unique_calls = []
+            for call in function_calls:
+                if call not in seen:
+                    seen.add(call)
+                    unique_calls.append(call)
+            
+            return unique_calls
+            
         except Exception as e:
-            print(f"Error extracting code block: {e}")
-            
-        return None
+            print(f"Error extracting function calls: {e}")
+            return []
     
     def _get_agent_response(self, messages: List[Dict[str, str]]) -> str:
         """
@@ -330,21 +381,17 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
     
     def _maintain_history_limit(self):
         """Maintains history within the specified limit"""
-        # Always preserve the first 2 messages (system prompt + response)
-        if len(self.history) > (self.history_limit * 2 + 2):
-            # Keep system prompt + response, and the last N exchanges
+        # Always preserve the system message (first message)
+        if len(self.history) > (self.history_limit * 2 + 1):
+            # Keep system message, and the last N exchanges
             messages_to_keep = self.history_limit * 2
-            self.history = self.history[:2] + self.history[-(messages_to_keep):]
+            self.history = self.history[:1] + self.history[-(messages_to_keep):]
     
+    # Mejoras sugeridas para el método send_message
+
     def send_message(self, message: str) -> str:
         """
         Send a message to the agent and receive response after internal iterations
-        
-        Args:
-            message: User message
-            
-        Returns:
-            Final agent response
         """
         # Reset reply state
         self._reply_called = False
@@ -356,6 +403,7 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
         # Internal iteration loop
         current_messages = self.history.copy()
         iteration = 0
+        consecutive_no_reply = 0  # Contador para respuestas sin reply()
         
         print(f"Usuario: {message}")
         print("--- Procesamiento interno del agente ---")
@@ -369,35 +417,86 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
             agent_response = self._get_agent_response(current_messages)
             print()  # New line after streaming
             
-            # Check if there's a function call in code block
-            function_call = self._extract_code_block_function(agent_response)
+            # Check if there are function calls in the response
+            function_calls = self._extract_function_calls(agent_response)
             
-            if function_call:
-                self._print_colored(f"Ejecutando: {function_call}", self.GREEN)
+            if function_calls:
+                consecutive_no_reply = 0  # Reset counter si hay function calls
                 
-                # Execute the function
-                function_result = self._execute_function(function_call)
-                self._print_colored(f" Resultado: {function_result}", self.GREEN)
+                # Execute all found function calls
+                for function_call in function_calls:
+                    self._print_colored(f"⚡ Ejecutando: {function_call}", self.GREEN)
+                    
+                    # Execute the function
+                    function_result = self._execute_function(function_call)
+                    self._print_colored(f"📋 Resultado: {function_result}", self.GREEN)
+                    
+                    # If reply was called, break out of both loops
+                    if self._reply_called:
+                        break
                 
-                # Add to conversation
-                current_messages.append({"role": "assistant", "content": agent_response})
-                current_messages.append({"role": "user", "content": f"Resultado de la función: {function_result}"})
-                
-                # If reply was called, break the loop
-                if self._reply_called:
-                    break
+                # Add to conversation (only if not reply)
+                if not self._reply_called:
+                    current_messages.append({"role": "assistant", "content": agent_response})
+                    # Combine all results into one message
+                    results_message = "Resultados de la ejecución de funciones:\n" + "\n".join([
+                        f"- {call}: {self._execute_function(call)}" 
+                        for call in function_calls
+                    ])
+                    current_messages.append({"role": "user", "content": results_message})
                     
             else:
-                # No function call found, treat as final response
-                self._final_response = agent_response
-                break
+                consecutive_no_reply += 1
+                
+                # NUEVA LÓGICA: Detectar si necesita usar reply() y forzarlo
+                if consecutive_no_reply >= 2:
+                    # Después de 2 respuestas sin function calls, forzar reply()
+                    current_messages.append({"role": "assistant", "content": agent_response})
+                    current_messages.append({
+                        "role": "user", 
+                        "content": """🚨 CRÍTICO: DEBES usar la función reply() AHORA. 
+                        
+                        No puedes continuar sin usar reply(). El sistema requiere que uses:
+                        reply('tu respuesta completa en español aquí')
+                        
+                        Esto es OBLIGATORIO para terminar la conversación correctamente."""
+                    })
+                    consecutive_no_reply = 0
+                    continue
+                
+                # Check if the response looks like it's trying to be a final answer
+                final_answer_indicators = [
+                    'respuesta:', 'en resumen', 'por lo tanto', 'finalmente', 
+                    'en conclusión', 'para concluir', 'respondiendo a tu pregunta',
+                    'la respuesta es', 'puedo decirte que', 'según'
+                ]
+                
+                if any(phrase in agent_response.lower() for phrase in final_answer_indicators):
+                    # Looks like a final answer - force reply()
+                    current_messages.append({"role": "assistant", "content": agent_response})
+                    current_messages.append({
+                        "role": "user", 
+                        "content": """Parece que tienes una respuesta lista. DEBES usar la función reply() para enviarla:
+                        
+                        reply('tu respuesta completa aquí')
+                        
+                        Es OBLIGATORIO usar reply() para terminar la conversación."""
+                    })
+                else:
+                    # If it doesn't look like a final answer, encourage progress
+                    current_messages.append({"role": "assistant", "content": agent_response})
+                    current_messages.append({
+                        "role": "user", 
+                        "content": "Continúa con tu análisis y usa las herramientas apropiadas, o si ya tienes la respuesta, usa reply() para enviarla."
+                    })
         
         # Handle max iterations reached
         if iteration >= self.max_iterations and not self._reply_called:
-            self._final_response = "Se alcanzó el límite máximo de iteraciones. Proceso terminado."
+            self._final_response = "Lo siento, se alcanzó el límite máximo de procesamiento. Por favor, reformula tu consulta."
+            self._print_colored("⚠️ Límite de iteraciones alcanzado - forzando respuesta", self.YELLOW)
         
         print("\n--- Fin del procesamiento ---")
-        print(f"Respuesta final: {self._final_response}")
+        print(f"✅ Respuesta final: {self._final_response}")
         
         # Add final exchange to history
         self.history.append({"role": "assistant", "content": self._final_response})
@@ -406,7 +505,7 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
         self._maintain_history_limit()
         
         return self._final_response
-    
+
     def get_history(self) -> List[Dict[str, str]]:
         """Returns the current conversation history"""
         return self.history.copy()
@@ -414,8 +513,7 @@ Esta función reply terminará la conversación y enviará tu respuesta al usuar
     def clear_history(self):
         """Resets history keeping only the system prompt"""
         self.history = [
-            {"role": "user", "content": self.system_prompt},
-            {"role": "assistant", "content": "Entendido. Puedo ejecutar funciones usando bloques de código Python y usar reply() para responder."}
+            {"role": "system", "content": self.system_prompt}
         ]
     
     def change_model(self, new_model: str):

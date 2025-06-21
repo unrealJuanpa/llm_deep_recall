@@ -6,7 +6,7 @@ os.system("clear")
 
 # Create agent instance
 agent = AIAgent(
-    model='llama3.2:3b-instruct-fp16',
+    model='gemma3:latest',
     history_limit=30, 
     tools=[
         tools.buscar_en_internet, 

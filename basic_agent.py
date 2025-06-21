@@ -1,6 +1,7 @@
 # basic_agent.py
 import requests
 import re
+import ast
 from typing import Callable, Any, Optional
 
 
@@ -41,19 +42,32 @@ class BasicAgent:
         return f"({args})"
 
     def _parse_function_call(self, text: str) -> Optional[str]:
-        """Detecta y ejecuta una llamada a función tipo: función: sumar(2, 3)"""
+        """Detecta y ejecuta una llamada a función tipo: función: sumar(2, 3) de forma segura."""
         match = re.match(r"función:\s*(\w+)\((.*)\)", text.strip(), re.IGNORECASE)
         if match:
             tool_name = match.group(1)
             raw_args = match.group(2)
+
             if tool_name in self.tools:
                 try:
-                    args = eval(f"[{raw_args}]")
-                    print(f"[Ejecutando función '{tool_name}' con argumentos {args}]")
-                    result = self.tools[tool_name](*args)
+                    # Parseo seguro de argumentos con ast
+                    parsed = ast.parse(f"f({raw_args})", mode='eval')
+                    if not isinstance(parsed.body, ast.Call):
+                        return f"[Error: Formato de función inválido.]"
+
+                    safe_args = []
+                    for arg in parsed.body.args:
+                        if isinstance(arg, (ast.Constant, ast.List, ast.Tuple, ast.Dict)):
+                            safe_args.append(ast.literal_eval(arg))
+                        else:
+                            return f"[Error: Argumento inseguro detectado.]"
+
+                    print(f"[Ejecutando función '{tool_name}' con argumentos {safe_args}]")
+                    result = self.tools[tool_name](*safe_args)
                     return str(result)
                 except Exception as e:
                     return f"[Error al ejecutar función '{tool_name}']: {e}"
+
         return None
 
     def chat(self, user_input: str) -> str:
